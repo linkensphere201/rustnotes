@@ -1,0 +1,66 @@
+概述
+========
+1. 先看String，String是由1个Vec组成
+2. 再看Vec，Vec最终是由一个RawVec构成，而RawVec，是个内部类型，在rust标准库中由1个Unique构成
+3. 再看Unique，内部是由一个`pointer: *const T`和`PhantomData<T>`组成
+4. 暂不往下追了...
+
+
+RLS的GotoDefinition
+------
+:call CocActionAsync('jumpDefinition')
+
+
+std::string::String
+--------------------
+```
+pub struct String {
+    vec: Vec<u8>,
+}
+```
+
+
+std::vec::Vec
+--------------
+```
+pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+    buf: RawVec<T, A>,
+    len: usize,
+}
+```
+
+```
+pub struct RawVec<T, A: Allocator = Global> {
+    ptr: Unique<T>,
+    cap: usize,
+    alloc: A,
+}
+```
+
+```
+pub struct Unique<T: ?Sized> {
+    pointer: *const T,
+    // NOTE: this marker has no consequences for variance, but is necessary
+    // for dropck to understand that we logically own a `T`.
+    //
+    // For details, see:
+    // https://github.com/rust-lang/rfcs/blob/master/text/0769-sound-generic-drop.md#phantom-data
+    _marker: PhantomData<T>,
+}
+```
+
+
+
+Option和Result
+---------
+1. 问号表达式
+	https://stackoverflow.com/questions/42917566/what-is-this-question-mark-operator-about
+
+2. 错误处理: 如何实现Option和Error.
+
+
+
+为什么每个类型边上都会有个`Methods from Deref<Target=xxx>`?
+----------------
+ - rust在处理类似`c.foo()`时，如果c实现了Deref，并且Deref后的类型包含`foo()`,则会自动解引用并调用。
+

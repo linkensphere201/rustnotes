@@ -1,0 +1,824 @@
+rust notes(from cpp to rust)
+================
+
+Part 1  语句，表达式
+------
+
+1. 语法 = 语句 + 表达式
+2. 语句 = 
+「声明语句」	： 
+「表达式语句」	：特指以分号结尾的语句。表达式语句的值是单元类型`()`.
+3. 单元类型 `()`: 单元类型只有唯一的值，即它本身.
+4. Rust为每个crate自动入标准库模块,除非使用#[no_std]属性明确指定不需要标准库
+```
+extern crate std;
+use std::prelude::vl::*;
+```
+5. block表达式：一系列表达式组成，block表达式的值是最后一个表达式的值。
+
+
+Part 2 变量/绑定/所有权 - PART I Intro
+------
+- 表达式：
+	- 位置表达式 placement expr:  如c++的左值
+	- 值表达式 value expr: 如c++右值
+
+- 不可变绑定：
+  Q: 某结构体的方法修改了本身的域的值，其能否被不可变绑定调用？ 
+  A: 不能，编译错误E0596。类似C++的const引用,只能调用const修饰的方法.
+
+- 所有权：
+	- 每个变量都有它所绑定的值的所有权
+	- 位置表达式处于值上下文时，将发生所有权转移
+
+- Box<T>: 等价于c++的 unique_ptr.
+
+Part 3 模块化和单元测试
+-------
+
+模块化
+-----
+1. 库crate和可执行文件crate
+	- 库crate：
+		- 入口是lib.rs
+	- 可执行文件crate:
+		- 入口是main.rs
+2. 一个项目包含多个crate
+	- 使用workspace：
+		即在**根工程**中，指定workspace tab的members属性，属性的值是该子crate的路径，Cargo.toml类似：
+		```
+		[workspace]
+		members = [
+ 		 "src/lib1",
+ 		 "src/cmd",
+		]
+		```
+3. 某个crate内部，可以有多个模块
+	- 定义模块：
+		- 方式：直接在本源文件（e.g.`./lib.rs`）中：
+		``` 
+		mod MODNAME {
+			....
+			....
+		}
+		```
+		- 在本源文件./lib.rs 中声明, 具体定义在其他地方：
+		```
+		mod MODNAME1;
+		pub mod MODNAME2;
+		```
+		- 具体定义在 ./MODNAME/mod.rs 
+		- 具体定义在 ./MONAME.rs
+	- 模块间的引用规则：
+		- 略，用各种路径或super相对路径.
+
+单元测试
+-------
+- 单元测试就是定义一个名为tests的模块，内部每个函数是一个测试，需要加上一些测试相关的注解
+- 如何跑测试case：
+	列出所有测试：cargo test -- --list
+	跑某个case,并在屏幕上输出test中的stdout输出：cargo test "tests::test_test1" -- --nocapture
+	 注：同一个模块内不会有同名test，若多个模块or多个crate存在同名测试，则可
+	 以用`--package <name>`和`modname::tests:xxxtest`来指定跑哪个测试.
+
+- 测试模块举例：
+```
+#[cfg(test)]
+mod tests {
+	use super::*;
+	#[test]
+	fn test_for_something() {
+		//...
+	}
+}
+```
+
+Part 4 basics
+-------------
+- 函数、闭包
+	- 函数定义的语法：
+		```
+		fn function_name (a: a_type, b: b_type) -> return_type {
+			// fn content
+		}
+		```
+- 流程控制
+- 结构体、元组、枚举体
+- 泛型
+
+基本数据类型
+----------
+- 标量类型
+- 复合类型
+	- 数组
+	```
+	// 创建数组
+	let a: [i32; 5] = [1, 2, 3, 4, 5];
+	let a = [2, 2, 2];
+	let a: [2; 3];
+
+	 // 访问数组
+	 let b = a[0];
+	```
+	- 元组
+	tuple内各个元素成员类型可以不同
+	```
+	// 元组创建
+	let a: (i32, f64, u8) = (500, 6.4, 1);  
+
+	// 元组访问
+	let x = a.0;
+	let y = a.1;
+	let z = a.2;
+
+	```
+- 原生指针
+	- 引用		reference		: 编译器会对引用进行借用检查。使其满足rust的ownership原则。
+	- 裸指针 	raw pointer		: 
+	- 函数指针	fn pointer
+	- 智能指针	smart pointer
+
+- 切片
+	- 对一个数组的引用片段
+
+more about reference
+--------------------
+1. 函数参数为引用类型的, 称为借用（borrowing）。
+```
+fn foo(bar: &bartype) {
+}
+```
+2. 声明一个引用
+```
+let b = Node::new();
+let a = &b;
+```
+3. println! 宏是通过借用传入后面给的参数的。
+4. 与c++的区别：
+	|               | rust | c++ |
+	|---------------|------|-----|
+	| 函数参数值传递  | 移动，原始变量在原来的作用域被移动后失效； | 拷贝 |
+	| 函数参数引用传递 | 借用 | 移动（参数类型声明为右值引用），借用语义（参数类型声明为左值引用） |
+5. 
+Q: 引用本身不能被移动，对一个引用解引用后能否被移动呢？
+A: 不能. 引用本质上是借用语义，没持有所有权，被移动则要求被移动的对象（值）持有所有权。
+参考解释： https://stackoverflow.com/questions/61995143/cannot-move-out-of-which-is-behind-a-shared-reference
+片段1
+/*
+let x = Node::new(111);
+let r = &x;
+let y = *r; // cannot move out of `*r` which is behind a shared reference
+*/
+片段2
+/*
+let mut x = Node::new(111);
+let r2 = &mut x;
+let y = *r2;  // cannot move out of `*r2` which is behind a mutable reference
+*/
+片段1和2都会出现编译错误，原因是引用不持有所有权. 解决方法：1.不移动 2.拷贝
+
+同样的问题如下：
+https://stackoverflow.com/questions/32338659/cannot-move-out-of-value-which-is-behind-a-shared-reference-when-unwrapping
+https://www.reddit.com/r/rust/comments/cc5484/why_doesnt_dereferencing_transfer_ownership
+
+6. 
+Q: 输出表达式求值后的类型
+A: 
+https://stackoverflow.com/questions/21747136/how-do-i-print-the-type-of-a-variable-in-rust
+1. 故意造成编译器错误
+2. 使用某些标准库提供的函数，如`std::any::type_name`
+
+7. 遗留问题：
+解引用操作符DeRef是啥？
+复制操作符Clone&Copy是啥？
+`std::cell::RefCell`是啥？
+
+
+more about reference P2
+-----------------------
+
+
+str字符串
+-----
+https://doc.rust-lang.org/std/primitive.str.html
+
+```
+let hello = "Hello, world!";
+// with an explicit type annotation
+let hello: &'static str = "Hello, world!";
+```
+- Q: 为啥str是引用的形式？
+	https://stackoverflow.com/questions/61174395/why-does-str-primarily-exist-in-its-borrowed-form
+  A: 参考上面的链接
+
+
+所有权
+-------
+1. 默认"let赋值语句"都是移动语义
+
+2. 
+Q: 数组内元素能否被移动？
+A1: 不行，
+A2：不能被移动，但可以被复制，前提是元素类型实现了Copy. (雾) 除非数组的元素类型实现了Clone trait.(雾)
+A3: 不能被移动的原因是，array的index operator被定义为返回该下标元素的引用，问题转化为为什么引用不能被移动==>显然，引用不能被移动的原因是引用没有所有权
+- https://users.rust-lang.org/t/why-cant-move-element-of-vector/30454
+- https://www.reddit.com/r/rust/comments/9j6yzb/why_does_rust_have_index_and_indexmut_traits_when
+
+
+
+
+附：E0508
+rustc --explain E0508:
+A value was moved out of a non-copy fixed-size array.
+
+Erroneous code example:
+```
+struct NonCopy;
+
+fn main() {
+    let array = [NonCopy; 1];
+    let _value = array[0]; // error: cannot move out of type `[NonCopy; 1]`,
+                           //        a non-copy fixed-size array
+}
+```
+
+The first element was moved out of the array, but this is not
+possible because `NonCopy` does not implement the `Copy` trait.
+
+Consider borrowing the element instead of moving it:
+
+```
+struct NonCopy;
+
+fn main() {
+    let array = [NonCopy; 1];
+    let _value = &array[0]; // Borrowing is allowed, unlike moving.
+}
+```
+
+Alternatively, if your type implements `Clone` and you need to own the value,
+consider borrowing and then cloning:
+
+```
+#[derive(Clone)]
+struct NonCopy;
+
+fn main() {
+    let array = [NonCopy; 1];
+    // Now you can clone the array element.
+    let _value = array[0].clone();
+}
+```
+
+关于Copy
+--------
+Q: 为什么数组元素不能被移动？
+A: 参考上面的问题。
+
+Q: 没有实现Copy的原生类型？
+A: There are other primitives that don't implement Copy, including `slices` and `mutable references`, and `arrays` and `tuples` if the elements of those don't implement it.
+
+
+结构体及其方法
+------------
+1. 结构体种类：
+- 具名结构体
+- 元组结构体
+	- 只有1个元素的元组结构体，称之为new type模式。
+- 单元结构体
+	- 没有成员变量的结构体
+	- 单元结构体的实例在release模式时会被优化为同一个对象。
+
+2. 具名结构体定义：结构体定义和结构体包含的方法定义。
+```
+struct Node {
+	id: i64,
+}
+impl Node {
+	fn new(id: i64) -> Self {
+		Node{id: id}
+	}	
+	fn set_id(&mut self, id: i64) {
+		self.id = id;
+	}
+}
+```
+
+结构体&方法
+----------
+1. 以`self`作为方法的参数，将消耗所有权.
+https://stackoverflow.com/questions/55117392/why-is-there-a-borrow-of-a-moved-value-when-calling-a-method-that-takes-self-by
+
+
+
+可变性
+-----
+1. 可变绑定
+let mut mutable_box = immutable_box;
+
+2. 可变引用&通过可变引用改原值
+```
+let mut a:u32 = 1;
+let s:&mut u32 = &mut a;
+*s = 20;
+```
+可变引用只能对可变绑定做,通过可变引用修改原值时，需要先解引用。
+
+
+
+枚举体
+-------
+说明：https://kaisery.github.io/trpl-zh-cn/ch06-01-defining-an-enum.html
+实例：std::option::Option
+
+- 定义枚举体
+``` 
+// 1. 与c++类似
+enum IpAddrKind {
+    V4, //枚举体的成员（variants）
+    V6,
+}
+```
+
+```
+// 2. 每个域可以关联具体某个数据类型
+enum IpAddr {
+    V4(String),
+    V6(String),
+}
+```
+- 枚举体+泛型
+标准库中Option<T>的定义：
+```
+enum Option<T> {
+    Some(T),  	// 枚举域，它的值是与T类型关联的值 
+    None,		// 枚举域，没有定义值
+}
+```
+- 枚举体也可以定义方法，可以参考标准库中Option<T>的定义
+
+
+关键字 self和Self
+-------
+Self是类型
+self是对象
+
+
+闭包
+----
+- 定义匿名函数
+```
+let fn1 = move |a: a_type, b: b_type| -> returned_type { 
+	// ... 
+};
+```
+- 闭包的3种捕获方式：
+	闭包会创建新的作用域，对于环境变量来说有以下三种捕获方式
+    - 对于复制语义类型 ，以不可变引用( &T ）来捕获。
+    - 对于移动语义类型, 执行移动语义（ move ）转移所有权来捕获
+    - 对于可变绑定，如果在闭包中包含对其进行修改的操作 ，则以可变引用(&mut ）来捕获。
+
+
+泛型、trait P1 - 基本使用
+-----------
+1. 泛型
+	- 参考标准库的std::option::Option
+	- 定义：
+	```
+	struct Node<T> { /// 增加了一个类型参数T
+	}
+	```
+	```
+	struct Node<T: Debug> { 
+	// 类型参数T，增加了trait限定（trait bound)，只有实现Debug trait的类型才可作为类型参数传入
+	}
+	```
+	- 编译器会对泛型函数的参数类型和返回值类型进行自动推导
+2. trait
+	trait是rust的接口抽象方式
+	- 定义trait：
+	```
+	struct A;
+	trait XXX {
+		fn DoSomething(&self) -> bool;
+	}
+	impl XXX for A {
+		fn DoSomething(&self) -> bool {
+			return false;
+		}
+	}
+	```
+	- 使用trait：
+	  下一节.
+
+trait的使用
+----------
+- trait + 泛型
+  - 关联类型：
+  - trait限定：
+  	- “trait限定”是在使用泛型时，对传入的类型参数采取的限定，要求传入的类型需要实现某些trait。 PS: c++直到c++20才支持了泛型约束。
+  	- 使用上有2种形式，如下：
+  	  ```
+  	  // usage1.
+  	  fn func1<T: SomeTrait> () {
+  	  // blah blah
+  	  }
+
+  	  // usage2.
+  	  fn func2<T> () where T: Bar {
+  	  }
+  	  ```
+
+
+- trait对象：
+  - 泛型类型参数限定为某个trait，用该泛型类型参数修饰的变量就是trait对象。
+  - trait本身是一种类型，但大小在编译期无法确定，使用trait对象必须用指针。(即引用或智能指针)
+  - trait对象的分发：
+  	- 静态分发: 使用泛型参数，并使用trait限定.
+  	- 动态分发: 直接把输入参数的类型写为某个trait指针。
+  		动态分发运行什么代码是运行时才可知的事情
+  		动态分发里
+
+
+  ```
+  trait Bar {
+  	fn baz(&self);
+  }
+  struct Foo;
+  impl Bar for Foo {
+  	fn baz(&self) {
+  		 println!("hello!");
+  	}
+  }
+  ```
+
+  ```
+  fn somefn<T>(t: &T) where T:Bar {
+    t.baz();  // t是trait对象
+  }
+  ```
+- 
+- 标签trait：
+	• Sized trait，用来标识编译期可确定大小的类型
+	• Unsize trait， 目前该trait为实验特性，用于标识动态大小类型（DST）
+	• Copy trait，用来标识可以按位复制其值的类型
+	• Send trait，用来标识可以跨线程安全通信的类型
+	• Sync trait，用来标识可以在线程安全共享引用的类型
+- trait的继承：
+	- 定义
+	```
+	trait a {
+	  fn f1();
+	}
+	trait b {
+	  fn f2();
+	}
+	trait c : a {
+	  fn f3();
+	}
+	trait d : a + b{
+	  fn f4();
+	}	
+	```
+
+impl Trait和dyn Trait
+---------------------
+```
+fn func2 (arg: impl SomeTrait){
+}
+```
+
+
+函数指针与闭包trait
+-----------------
+```
+fn do_twice(f: fn(i32) -> i32, arg: i32) -> i32 {
+    f(arg) + f(arg)
+}
+// f是函数指针
+```
+
+self作为参数时的问题：将消耗所有权。类似下面这段：
+```
+struct NonCopy {
+    s1: i32,
+    s2: i32,
+}
+struct Foo {
+    i: i32,
+    k: NonCopy,
+}
+impl Foo {
+    fn new (i: i32) -> Self {
+        Foo {i: i, k: NonCopy{s1:i, s2:i}}
+    }
+    fn foo (self) -> NonCopy {
+        self.k
+    }
+}
+#[test]
+fn test_foo() {
+    let f = Foo::new(111);
+    let noncp = f.foo();
+    println!("{}", noncp.s1);
+}
+```
+https://stackoverflow.com/questions/55117392/why-is-there-a-borrow-of-a-moved-value-when-calling-a-method-that-takes-self-by
+
+
+- Q: Fn与fn的区别：
+  A: https://users.rust-lang.org/t/fn-vs-fn-in-type-signatures/26108
+
+- Q:Fn是什么？
+	A:是rust编译器对于闭包的实现引入的3个trait中的1个。
+	闭包只是rust的语法糖，实际上编译器会生成1个结构体，该结构体实现下面3个trait中的1个。-----++
+	3个trait分别是:
+	```
+	//...
+	pub trait FnOnce<Args> {
+	    type Output;
+	    extern "rust-call" fn call_once(self, args: Args) -> Self::Output;
+	}
+
+	pub trait FnMut<Args>: FnOnce<Args> {
+	    extern "rust-call" fn call_mut(
+	        &mut self, 
+	        args: Args
+	    ) -> Self::Output;
+	}
+
+	pub trait Fn<Args>: FnMut<Args> {
+	    extern "rust-call" fn call(&self, args: Args) -> Self::Output;
+	}
+	```
+	Fn    : &self接受者，
+	FnMut : &mut self接受者，
+	FnOnce: 以self调用,只能调用一次，
+
+-  Q:编译器把闭包表达式实现为上面3个中的1个，其规则是什么？
+	1. 复制语义变量，以不可变引用方式捕获。这种方式捕获的闭包，实现了Fn。示例如下：
+		--- PS: &str 字符串是复制语义。
+	```
+
+	```
+	2. 移动语义变量，执行移动语义，转移所有权捕获。----> FnOnce。注意：这种闭包的接受者是self，只能执行一次。
+
+	3. 可变绑定 + 闭包内部对该变量进行修改，则执行可变引用方式捕获。---> FnMut
+
+	4. 可变性声明的语法。。。。:(
+	```
+	可变引用作为函数参数：
+	fn call_fnmut<F>(a: i32, f: &mut F) -> i32 where F: FnMut(i32) -> i32 {
+		//....
+	}
+
+	可变绑定作为参数：
+	fn call_fnmut<F>(a: i32, mut f: F) -> i32 where F: FnMut(i32) -> i32 {
+		//....
+	}
+	```
+
+宏 p1：vec!宏
+------------
+
+
+基本语句
+-------
+- for、loop
+- if
+- if let、while let
+
+
+小试enum和match
+-------------
+参考Option<T>实现一个StatusOr
+可实现：https://github.com/vesoft-inc/nebula-common/blob/master/src/common/base/StatusOr.h
+
+
+自动解引用
+---------
+
+
+
+迭代器和`for ... in`语句
+--------------------
+- '&'在循环语句中是什么意思？
+https://stackoverflow.com/questions/57339201/what-is-the-purpose-of-before-the-loop-variable
+```
+for &i in xxx {
+	//...
+}
+```
+
+- for语句本质上：是一个利用iterator模式实现的语法糖.
+- 迭代器 trait（Iterator trait）
+```
+trait Iterator {
+	type Item;
+	fn next(&mut self) -> Option<Self::Item>;
+}
+```
+
+
+标准库容器集合：vector、HashMap、String
+------------------------------------
+1. std::Vec
+2. 返回的类型是多个可能：
+https://stackoverflow.com/questions/60437885/multiple-return-types-in-rust 
+
+
+`?Sized`
+-------
+`Sized`是确定类型大小的类型
+`?Sized`是确定类型大小以及不确定类型大小的类型
+
+
+
+解引用 Deref
+------
+- 自动解引用.
+ - Deref的定义
+ ```
+ pub trait Deref {
+    type Target: ?Sized;
+    #[must_use]
+    fn deref(&self) -> &Self::Target;
+}
+ ```
+ - +解引用的行为可以自定义.通过实现Deref trait来做.
+
+ - +自动解引用在什么时候发生？
+ 	https://doc.rust-lang.org/std/ops/trait.Deref.html#more-on-deref-coercion
+ 	- In immutable contexts, *x (where T is neither a reference nor a raw pointer) is equivalent to *Deref::deref(&x)
+	- Values of type &T are coerced to values of type &U
+	- T implicitly implements all the (immutable) methods of the type U
+
+字符转u8
+-------
+- 下面这俩就是std::string_view和std::String：&str 和 String
+
+
+字符串：str
+-----------
+- 定义&使用
+- 复制str
+
+
+字符串：String
+--------------
+
+String的From与Cow
+-----------------
+
+Trait: std::string::ToString
+---------------------------
+
+Trait: std::convert::From
+--------------------------
+
+Trait: std::borrow::ToOwned
+---------------------------
+
+
+
+
+
+切片slice
+--------
+
+
+函数作为参数
+-----------
+
+
+trait的深入：Copy和Clone
+-----------------------
+
+1. `Copy Trait`只是一个标记trait，内部实现是空的。
+	PS: 这个跟c++的各种tag有点像(但仅是像而已)，尤其是迭代器tag（前向、随机、逆序迭代器等）。
+	PSS: c++的tag是新定义的某类型，用于在函数重载时使用。rust的tag trait其实是用于泛型约束的。
+	PSSS: 实现从rust标准库源码里摘抄出来如下：
+
+https://doc.rust-lang.org/src/core/marker.rs.html#386-388
+```
+#[stable(feature = "rust1", since = "1.0.0")]
+#[lang = "copy"]
+// FIXME(matthewjasper) This allows copying a type that doesn't implement
+// `Copy` because of unsatisfied lifetime bounds (copying `A<'_>` when only
+// `A<'static>: Copy` and `A<'_>: Clone`).
+// We have this attribute here for now only because there are quite a few
+// existing specializations on `Copy` that already exist in the standard
+// library, and there's no way to safely have this behavior right now.
+#[rustc_unsafe_specialization_marker]
+pub trait Copy: Clone {
+    // Empty.
+}
+```
+
+2. `Copy Trait`继承自Clone, 要实现Copy，需要先实现Clone.
+	- Clone是需要显式调用的
+	- Copy只是个标记，告诉编译器这个对象可以运用在「可能发生拷贝的地方」，如：函数返回值，赋值运算符等
+	- Copy能否标记上，取决于这个对象类型是否能够按位复制
+
+
+3. Q: 赋值运算符能否被重载？
+      >> https://stackoverflow.com/questions/37377250/how-can-i-overload-the-assignment-operation-in-rust
+   A: 简单回答：不能。
+
+4. 与C++的对比，C++可以重载赋值运算符，但这也造成一些隐式调用的问题。
+
+属性注解
+-------
+- #![....]和#[....]的区别：#!是对整个crate生效，#是只对下一个标记的对象有效。
+[ref1]: https://doc.rust-lang.org/rust-by-example/attribute.html：
+When attributes apply to a whole crate, their syntax is #![crate_attribute], and when they apply to a module or item, the syntax is #[item_attribute] (notice the missing bang !).
+
+
+- 
+Copy trait RFC： https://rust-lang.github.io/rfcs/0019-opt-in-builtin-traits.html?highlight=lang%20%3D%20copy#controlling-copy-vs-move-with-the-copy-trait
+
+
+操作符
+-----
+a + b =======> a.add(b)
+       等价于
+
+
+
+as关键字
+-------
+类型强转
+语法：
+```
+let y: f64 = 0.5_f64;
+let mut a: usize = y as usize;
+println!("{}", a);
+```
+
+
+Part 5 智能指针 & 多线程资源共享
+-----------
+Q: 如何在多线程间共享资源？
+A: std::Arc
+
+Q: Arc管理的资源，锁粒度如何调整？ 
+A:
+
+
+生命周期参数-intro
+----------
+意义：
+	用来标注返回值是引用时的生命周期（返回值与输入参数的lifetime的关系）。
+	注：不能在没有输入的场景下返回引用，这样没有意义。
+
+使用
+
+```
+let s = 0_i32;
+let a : &mut i32 = &mut s;  //可变引用
+```
+
+```
+fn foo<'a> (a: &'a str, t: &'a str) -> &'a str;
+```
+
+
+
+宏
+---
+```
+未实现宏：
+unimplemented!()
+```
+
+
+
+
+atlas开发
+=================
+1. 快速浏览nebula的存储侧的下推、执行计划实现（StoragePlan）：
+The StoragePlan looks like this:
+             +--------+---------+
+             | GetNeighborsNode |
+             +--------+---------+
+                      |
+             +--------+---------+
+             |   AggregateNode  |
+             +--------+---------+
+                      |
+             +--------+---------+
+             |    FilterNode    |
+             +--------+---------+
+                      |
+             +--------+---------+
+         +-->+   HashJoinNode   +<----+
+         |   +------------------+     |
++--------+---------+        +---------+--------+
+|     TagNodes     |        |     EdgeNodes    |
++------------------+        +------------------+
+
+2. 计算层：了解目前atlas的执行计划，存储层：了解当前存储层的整体代码结构.
+
+3. 主键下推：
+	- 跟计算层的接口对接定义
+	- 

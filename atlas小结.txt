@@ -1,0 +1,77 @@
+1. 存储侧：写流程。
+2. 提供批量写边接口。
+
+
+RPC定义
+---------
+src/rpc/protos/store.proto
+	message ...
+	...
+
+	store
+
+service实现
+--------------
+src/store/src/service.rs
+pub struct StoreImpl {...}
+impl StoreImpl {...}
+impl Store for StoreImpl {
+	//...
+}
+
+service层
+--------
+
+AddEdgeByPropIdsReq
+AddEdgePkByPropIdsReq
+
+message AddEdgeByPropIdsReq {
+    int32 graph_id = 1;
+    uint64 src = 2;
+    int32 src_shard_id = 3;
+    int32 src_label_id = 4;
+    uint64 dst = 5;
+    int32 dst_shard_id = 6;
+    int32 dst_label_id = 7;
+    int32 direction = 8;
+    uint64 edge_id = 9;
+    int32 edge_label_id = 10;
+    int64 version = 11;
+    repeated PropertyIdValuePair pv_pairs = 12;
+}
+StoreImpl::add_edge_with_inner_id_by_prop_ids
+
+
+
+
+	+---------------------------------	AtlasGraph
+	|							+----- 	CrKv
+	|							|
+StoreImpl.atlas_graph      StoreImpl.data_store 
+------------
+AtlasGraph -> data_store.set()  
+// encoding后调用Crkv
+
+
+
+data_store.get/set
+------------
+
+
+
+nebula存储侧执行计划
+------------
+
+
+
+
+
+------
+
+src/server/src/store.rs
+impl Server for StoreServer {
+
+
+
+
+

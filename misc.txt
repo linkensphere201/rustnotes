@@ -1,0 +1,224 @@
+./configure --with-features=huge \
+--enable-multibyte \
+--enable-pythoninterp=dynamic \
+--with-python-config-dir=/usr/lib64/python2.7/config \
+--enable-python3interp=dynamic \
+--with-python3-config-dir=/usr/lib64/python3.6/config-3.6m-x86_64-linux-gnu \
+--enable-cscope \
+--enable-gui=auto \
+--enable-gtk2-check \
+--enable-fontset \
+--enable-largefile \
+--disable-netbeans \
+--with-compiledby="yangweijian" \
+--enable-fail-if-missing \
+--enable-luainterp=yes \
+--with-lua-prefix=/usr/local
+
+
+call CocActionAsync('jumpDefinition')
+
+
+centos8 llvm
+yum module install llvm-toolset
+
+
+
+
+atlas test query
+-----------
+CREATE VERTEX PersonA(PRIMARY KEY id Int64, age Int64, name String);
+CREATE VERTEX PersonB(PRIMARY KEY id String, age Int64, name String);
+CREATE EDGE KnowsA(since int64);
+
+show vertex;
+show edge;
+
+CREATE (n:PersonA { id: 10, age: 10, name: 'Mike' }) RETURN n;
+CREATE (n:PersonA { id: 20, age: 10, name: 'Doge' }) RETURN n;
+
+CREATE (n:PersonB { id: 'm1', age: 13, name: 'Michael' }) RETURN n;
+CREATE (n:PersonB { id: 'm2', age: 11, name: 'Simon' }) RETURN n;
+
+MATCH (a:PersonA{id: 10}),(b:PersonA{id:20}) CREATE (a)-[r:KnowsA{since:2001}]->(b) RETURN r;
+MATCH (a:PersonB{id:'m1'}),(b:PersonB{id:'m2'}) CREATE (a)-[r:KnowsA{since:2033}]->(b) RETURN r;
+
+MATCH (a:PersonA) return a;
+MATCH (a:PersonB) return a;
+MATCH (:PersonB)-[r:KnowsA]-(:PersonB) return r; 
+
+
+
+atlas-op
+---------
+ps -ef | grep atlasd | awk '{print $2}' | xargs kill
+ps -ef | grep etcd | awk '{print $2}' | xargs kill
+
+
+prop_id: [2, 0, 1]
+FieldValue { data: Some(Str("m1")) }, FieldValue { data: Some(Int64(15)) }, FieldValue { data: Some(Str("Michael2")) }
+
+
+
+
+
+
+graph			rpc	interface							rpc proto						
+---------------------------------------------------------------------
+add_edge 		add_edge_with_inner_id_by_prop_ids		rpc AddEdgeWithInnerIdByPropIds(AddEdgeByPropIdsReq) returns (AddEdgeResp);
+multi_add_edge 	multi_add_edge_batch_by_prop_id			
+import_edge		add_edge_batch_sec							
+
+add_vertex		String(string_pk) ==> .add_vertex_with_string_pk_by_prop_ids
+				_ 				  ==> .add_vertex_with_inner_id_by_prop_ids
+
+				add_vertex_batch ==> add_vertex_batch_by_prop_id_value
+
+
+
+
+Iterceptor of TONIC
+--------------------
+https://github.com/hyperium/tonic/blob/master/examples/src/authentication/server.rs#L56
+
+
+
+Message Decoding
+-----------------
+`::prost::Message`
+uri.PATH
+
+
+
+分享
+----
+1. 图数据库是什么？为什么需要图数据库？
+2. 原生图？
+
+
+gartner魔力象限
+
+
+
+多模数据库ArrangoDB
+
+
+
+ids: 	[1, 				2, 					3                ]
+addrs: 	["127.0.0.1:21023", "127.0.0.1:21026",  "127.0.0.1:21027"]
+
+graph.shards: 
+[
+	0,  ==> { id: 0, chain: [1, 2, 3], replications: 3, term: 0 }
+	1, 	==> { id: 1, chain: [2, 3, 1], replications: 3, term: 0 }
+	2	==> { id: 2, chain: [3, 1, 2], replications: 3, term: 0 }
+]
+
+
+
+
+
+graphid=0, graph:Graph { gid: 0, name: "test", num_shards: 3, shards: [0, 1, 2], replica_factor: 3, description: "test graph", create_ts: SystemTime { tv_sec: 1631082795, tv_nsec: 367610271 }, update_ts: SystemTime { tv_sec: 1631082795, tv_nsec: 368672143 } }, cr_config:GetCrConfigRsp { ids: [1, 2, 3], addrs: ["127.0.0.1:21023", "127.0.0.1:21026", "127.0.0.1:21027"], graph_shards_info: [GraphShardsPair { graph_id: 0, shard_ids: [0, 1, 2] }], shards: [ShardInfo { id: 1, chain: [2, 3, 1], replications: 3, term: 0 }, ShardInfo { id: 2, chain: [3, 1, 2], replications: 3, term: 0 }, ShardInfo { id: 0, chain: [1, 2, 3], replications: 3, term: 0 }] }
+
+
+
+
+./src/store/src/cr_store/peer.rs
+
+
+
+
+AddEdgeBatchSecReq
+AddEdgeBatchSecByStringVertexPkReq,AddEdgeBatchSecByStringVertexPkResp
+
+
+
+GetVertexIdBatchByPkReq
+GetVertexIdBatchByPkResp
+
+
+```
+use rpc::{common::FieldValue, store::store_client::StoreClient};
+use tonic::Request;
+use rpc::store::{AddEdgeBatchSecByStringVertexPkReq, AddEdgeBatchSecByStringVertexPkResp,};
+
+
+#[tokio::main]
+async fn main() {
+    let addr = "10.0.0.122:21023";
+    let mut d_client = StoreClient::connect(format!("http://{}", addr))
+        .await
+        .map_err(|err| format!("Can not connect to store server: {}\n{}", addr, err))
+        .unwrap();
+
+println!("{} connected!", addr);
+```
+
+
+2
+图是相互连接的实体及其关系的一种结构化表达方式。
+图数据库是依托图论为理论基础，专门用于存储和分析实体间关系的数据库。
+
+3-4
+我们为什么需要图？
+基于图的分析和查询可以深入探索各种实体（组织，人员，交易）之间复杂的相互关系，几乎可以建模和查询任何的数据。而不仅仅是报表等趋势性数据。
+
+5
+对于传统的关系型数据库，在处理复杂数据关系运算上表现很差。
+由于存储模型是关系模型，对于多跳查询，关系型数据库需要进行多表间的连接查询。随着数据量和深度的增加，无法在有效的时间内计算出结果。
+为了更好的体现数据间的连接关系，企业需要一种将关系信息存储为实体、灵活拓展数据模型的数据库技术，这项技术就是图数据库（Graph Database）。
+
+6
+在图数据库领域，海致与清华大学高性能计算所达成了深度合作，在海致设立了高性能图计算院士工作站，探索高性能图计算领域。
+郑伟民院士作为中国计算机体系结构学科带头人，也是海致的首席科学家。
+
+7
+下面介绍下我们的主要开发团队，目前atlas graph的主要开发团队成员来自清华大学高性能计算所，在图存储、图计算和分布式等领域均有较为深厚的积累。
+在这个产研合作的背景下，结合了学术的技术深度和工业的实际项目落地的经验，开发了国产高性能图数据库atlasgraph。
+
+8
+AtlasGraph的产研技术探索方向主要分为几个方面，存储引擎、查询引擎、分布式、图计算等方向，另外我们也会向已有的其他图数据库进行一些调研，取长补短。
+
+9
+下面介绍一下AtlasGraph图数据库关键特性
+图原生
+分布式图查询引擎
+基于链式复制的分布式存储
+高性能
+易用 提供的图查询语言是基于opencypher
+
+10
+然后介绍一下atlasgraph图数据库的数据模型，atlas采用易理解的有向属性图来建模。
+也就是逻辑上图由两种元素构成：顶点和边，另外每个顶点和每条边都有1个模式（schema）与其关联。
+模式类似于传统数据库的概念，指定了这个点或边有哪些属性以及属性的数据类型。
+
+另一个方面是图分割，由于超大规模关系网络的节点数量高达百亿到千亿，而边的数量更会高达万亿，即使仅存储点和边两者也远大于一般服务器的容量。
+因此需要有方法将图元素切割，并存储在不同逻辑分片 partition 上。
+
+业界公认的图分割方式目前有两种，切点和切边，atlas选择了可支持实时高性能插入和更新操作的切边方案
+
+11
+接下来介绍atlas的图查询语言，是基于cypher的图查询语言，类SQL的查询语言，对分析师友好，同时也是各大厂商支持度较高的语言。较为易用。因此atlas选用它作为图查询语言。
+2015 年 9 月，Neo4j 开放了 Cypher 查询语言，通过开源的方式来治理。这个新主体的治理主体是 openCypher Implementors Group（oCIG）。
+G-CORE 是由 LDBC 工作组设计的，但主要受 Cypher 的启发，采用一样的语义。
+Cypher 是 PGQL 和 G-CORE 的共同祖先。这几个语言的语法和语义都非常的接近。PGQL 更接近一些早期的 Cypher，而 G-CORE 更期望语法和语义上都与 Cypher 兼容。
+
+12
+自底向上分别为单机存储，分布式一致性层、计算节点和用户客户端，然后集群的元信息存储在配置中心。
+用户发起一个请求，
+
+13
+主要架构，包括四个主要的功能模块，分别是存储层、计算层、元数据服务、用户接口层和管理模块。
+存储层主要包括单机存储，分布式一致性和事务层，存储层支持的存储引擎是rocksdb，多个存储节点之间
+
+
+
+15
+总结一下，atlas主要功能有几个方面，包括数据接入，图构建，图查询和图挖掘以及提供了一定的系统运维能力。
+
+
+
+-----------------
+
+
+

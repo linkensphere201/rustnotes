@@ -1,0 +1,346 @@
+trait小结
+=========
+
+trait定义和基本使用
+=======
+
+1. 定义trait
+```
+trait xxx {
+	type xxx;
+	fn f1(&self);
+}
+```
+
+2. 某结构体“实现”某个trait
+```
+struct xxx {
+}
+impl some {
+	fn ff1();
+}
+impl<T> xxxTrait for xxx {
+	xxxx
+}
+```
+
+3. 如何调用trait：
+	https://www.zhihu.com/question/340855881
+	1. 静态分发： 
+		泛型约束：用在带泛型参数的函数或方法里. 直接给某参数上限定，然后该参数可以直接调用trait定义的方法.
+
+	2. 动态分发： 
+		trait对象：所谓trait对象，就是个“指针”.（且是胖指针，即虚表指针存储在指针中，而在c++，虚表指针存储在结构体内）
+
+		语法： 
+		&dyn Trait = &some_var;
+		Box<dyn Trait> = Box::new(...);
+
+	  动态分发的一个例子
+	  ```
+		trait FooTrait <T> {     // 1. <T = Self> 表示T的默认值
+		    type Output;         // 2. type Output; 这句是关联类型
+		    fn ff(self, rhs: T) -> Self::Output;
+		}
+		impl FooTrait<f32> for u32 {
+		    type Output = u32;
+		    fn ff(self, rhs: f32) -> u32 {
+		        self + rhs as u32       // 3. 运算符优先级: as运算符 优先级高于 计算运算符
+		    }
+		}
+		#[allow(unused_variables)]
+		#[test]
+		fn test_trait() {
+		    let m = 10_u32;
+
+		    let n: &dyn FooTrait<f32,Output=u32> = &m;
+		    // let r = n.ff(0.5_f32);   //
+		    // 不ok，因为这个Trait本身大小不可确定，所以不能move它的实例(类似接口类，含有纯虚函数)
+		    let r = m.ff(0.5_f32);      // ok.
+		    println!("res = {}", r);
+		}
+
+		trait FooTrait2 <T> {
+		    type Output;
+		    fn ff(&self, rhs: T) -> Self::Output;
+		}
+		impl FooTrait2<f32> for u32 {
+		    type Output = u32;
+		    fn ff(&self, rhs: f32) -> u32 {
+		        self + rhs as u32
+		    }
+		}
+
+		#[test]
+		fn test_trait2() {
+		    let m = 10_u32;
+		    let n: &dyn FooTrait2<f32,Output=u32> = &m;
+		    let r = n.ff(0.5_f32);
+		    println!("res = {}", r);
+		}
+
+		#[test]
+		fn test_trait3() {
+		    let n: Box<dyn FooTrait2<f32,Output=u32>> = Box::new(10_u32);
+		    let r = n.ff(0.5_f32);
+		    println!("res = {}", r);
+		}
+	  ```
+
+
+dyn trait和impl trait
+=====================
+https://stackoverflow.com/questions/61960534/what-is-the-meaning-of-a-dyn-trait-in-argument-position
+https://stackoverflow.com/questions/61297300/returning-a-reference-to-a-boxdyn-trait
+
+```
+trait Animal {}
+
+struct Dog {}
+impl Dog for Animal{}
+
+struct Cat{}
+impl Cat for Animal{}
+
+struct Person {
+  my_dog: Dog,
+  my_cat: Cat
+}
+
+impl Person {
+    fn look_up_animal(&self, animal_name: &str) -> Option<&dyn Animal> {
+        match animal_name {
+            "dog" => Some(&self.my_dog),
+            "cat" => Some(&self.my_cat),
+            _ => None,
+        }
+    }
+}
+```
+
+
+各种标准库预定义的Trait
+====================
+
+- [ ] From/Into
+- [ ] AsRef
+- [ ] Deref
+- [ ] Copy/Clone
+- [ ] Iterator
+- [ ] Iterator Adapter
+
+
+From/Into
+---------
+1. 静态函数生成新对象. String::from("aaa");
+2. 注意这个调用会有消耗，Into trait是会消耗自身，生成一个新的目标对象。
+
+
+AsRef		
+---------
+1. `?Sized`是什么意思？
+	a. `Sized`是个标签trait，也是空trait。
+	b. `Sized`是指编译期可决定大小的类型。
+	c. `Sized`是rust里所有泛型参数的默认类型限制.
+	d. 如果泛型中参数（类型参数）是编译期不确定大小的，可以用`?Sized`来作为泛型约束，否则会报错。
+
+2. AsRef的使用场景： 类似handler模式. 详情：https://stackoverflow.com/questions/66026309/when-and-why-to-use-asreft-instead-of-t
+
+3. T的AsRef和&T的AsRef：
+if we have some `impl AsRef<U> for T` we also automatically get `impl AsRef<U> for &T` for all T for free.
+```
+// As lifts over &mut
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized, U: ?Sized> AsRef<U> for &mut T
+where
+    T: AsRef<U>,
+{
+    fn as_ref(&self) -> &U {
+        <T as AsRef<U>>::as_ref(*self)
+    }
+}
+```
+
+4. 对引用语义再更进一步：
+	（作用域 - 词法作用域）
+	一个引用，可以在作用域内解引用它，只要所有权不产生消耗即可。（因为引用没有所有权）
+
+Deref
+----------
+1. 实现了Deref， 对该类型对象调用 `*m`就等价于调用`m.deref()`, 注意：返回的东西是个引用。（一般是引用这个类型的内部某个field）
+2. 自动解引用发生时机：
+可以看下面这段代码，自动解引用会发生多次！自行体会.(PS：跟SystemTap中的隐式解引用十分类似！)
+	
+```
+/*
+	pub trait Deref {
+    type Target: ?Sized;
+        #[must_use]
+        fn deref(&self) -> &Self::Target;
+	}
+ */
+
+use std::ops::Deref;
+impl Deref for Counter {
+    type Target = usize;
+    fn deref(&self) -> &Self::Target {
+        println!("Counter: count:{}, cap:{} deref happen!", self.count, self.cap);
+        &self.count
+    }
+}
+#[test]
+fn test_deref() {
+    let m = Counter { count : 2, cap: 10} ;
+    println!("{}", *m);
+}
+
+fn test_take_usize(a: &usize) -> &usize {
+    a
+}
+#[test]
+fn test_auto_deref() {
+    let m = Counter { count : 2, cap: 10} ;
+    let a: &Counter = &m;
+    let x = test_take_usize(a);     // `a` would be auto-deref
+    let x = test_take_usize(&&&&a); // `&&&&a` would be auto-deref multiple times!
+
+    println!("{}, {}", x, m.count);
+}
+```
+
+Deref - part II
+----------
+1. String也实现了Deref<Target=str>
+2. 从std的文档中，写了一句话： 通过Deref<Target=str>，String也获取了str的所有方法。这句话我理解为：因为rust会有自动解引用，所以在
+任何参数为`&str`的函数参数上, 实参为String或&String的，都会被自动解引用传入。
+```
+fn take_str(m: &str) {}
+let s = String::from("aaa");
+take_str(s)
+```
+
+Iterator - part I
+------------
+
+
+1. 迭代器定义, `next`是核心方法，其他方法(基本)都是构建在`next`的基础之上。
+```
+trait Iterator {
+    type Item;
+    fn next(&mut self) -> Option<Self::Item>;
+}
+```
+
+2.1 从std官方文档摘抄：
+```
+Iterator’s full definition includes a number of other methods as well, but they are default methods, 
+built on top of next, and so you get them for free.
+```
+
+```
+Also note that Iterator provides a default implementation of methods such as nth and fold 
+which call next internally.
+However, it is also possible to write a custom implementation 
+of methods like nth and fold if an iterator can compute them more efficiently without calling next.
+```
+
+2.2 IntoIterator
+2.2.1 定义
+```
+pub trait IntoIterator {
+    type Item;
+    type IntoIter: Iterator;
+    fn into_iter(self) -> Self::IntoIter;
+}
+```
+看定义，就是把self转为了一个迭代器类型，并且消耗自己。
+
+2.2.2 for-loop和into迭代器
+a. `for loop`是Into迭代器的一个语法糖，1个for-loop等价于显式调用该变量的Into迭代器.
+
+
+b. 标准库为所有实现了Iterator的类型，自动实现IntoIterator,如下所示。
+```
+pub trait IntoIterator {
+    type Item;
+    type IntoIter: Iterator;
+    fn into_iter(self) -> Self::IntoIter;
+}
+impl<I: Iterator> IntoIterator for I {
+    type Item = I::Item;
+    type IntoIter = I;
+
+    fn into_iter(self) -> I {
+        self
+    }
+}
+```
+
+3.1 array实现的相关迭代器
+3.2 Vec实现的相关迭代器
+
+4. 不消耗所有权的迭代器
+	这里我个人觉得std上面说的有点模糊，实际上返回引用和可变引用的迭代器需要自己去
+	实现，另外，包个iter和iter_mut也是需要自己去实现的，例如，`std::vec::Vec`实
+	现了3遍迭代器，分别是`Self`， `&Self`和`&mut Self`.
+	
+	```
+	impl<T, A: Allocator> IntoIterator for Vec<T, A>
+	impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A>
+	impl<'a, T, A: Allocator> IntoIterator for &'a mut Vec<T, A>
+	```
+
+	参考：https://stackoverflow.com/questions/34733811/what-is-the-difference-between-iter-and-into-iter
+	
+	可以为&T实现引用迭代器。
+	```
+	fn test_iterator3() {
+	    let counter = Counter { count: 0, cap: 10 };
+	    for i in &counter {     // 报错：没有为&Counter类型实现迭代器
+	        println!("{}", i);
+	    }
+	    for i in counter.iter() { // 报错： 没有找到`iter()`这个方法
+	    }
+	} 
+	```
+
+5. 迭代器的内部逻辑理解：
+迭代器和被迭代的对象其实是两个对象！
+
+比如我有个类list，我为这个list实现了个迭代器叫listiterator。
+
+迭代器其实是指`某个类型`的迭代器, 当该类型的对象是以被move的形式去构造迭代器时，就是普通的IntoIterator；
+当该类型的对象是以被引用或被mut引用的形式去构造迭代器时，就是引用迭代器或mut引用迭代器。
+
+
+6. 迭代器适配器
+
+通过迭代器构造另一种迭代器，这就叫迭代器适配器。如map，take，filter。试过就ok。
+
+
+
+
+Copy/Clone
+-------------
+见`值语义-引用语义小结.txt`
+
+
+
+Index trait
+--------------
+
+
+
+
+0. hw1、hw2、lab1
+1. rust
+2. 存储层代码
+
+
+挑战 - 字符串分割
+-----
+
+https://stackoverflow.com/questions/37547225/split-a-string-and-return-vecstring
+https://stackoverflow.com/questions/55079070/how-to-accept-str-string-and-string-in-a-single-function
+
+

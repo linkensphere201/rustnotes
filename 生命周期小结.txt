@@ -1,0 +1,62 @@
+如何使用生命周期标记
+-----------------
+
+```
+fn foo＜'a>(s: &'a str, t: &'a str) ＆a' str {
+	s
+}
+```
+
+```
+struct Foo<'a> {
+	p: &'a str,
+}
+impl<'a> Foo<'a> {
+	
+} 
+```
+
+生命周期标记
+```
+impl<T, A: Allocator> IntoIterator for Vec<T, A>
+impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A>
+impl<'a, T, A: Allocator> IntoIterator for &'a mut Vec<T, A>
+```
+
+
+
+隐式生命周期
+----------
+
+下述代码里as_ref里不需要有生命周期标注，原因是符合rust的隐式生命周期规则：
+若存在&self或&mut self，则self的生命周期将分配给输出生命周期。
+
+```
+struct Counter {
+    count:  usize,
+    cap:    usize,
+}
+impl AsRef<usize> for Counter {
+    fn as_ref(&self) -> &usize {
+        &self.count
+    }
+}
+```
+
+
+生命周期限定
+----------
+
+std::error::Error提供的Error Trait中的：
+```
+pub trait Error: Debug + Display {
+    fn source(&self) -> Option<&(dyn Error + 'static)> { ... } //返回值的类型： 某个实现了Error且生命周期为静态生命周期的类型的实例的引用的Option
+    fn backtrace(&self) -> Option<&Backtrace> { ... }
+    fn description(&self) -> &str { ... }
+    fn cause(&self) -> Option<&dyn Error> { ... }
+}
+```
+
+
+
+
